@@ -8,3 +8,6 @@ attachments
 *.log
 /tmp
 AGENTS.md
+.grok/skills
+.grok/references
+.grok/preview.log
