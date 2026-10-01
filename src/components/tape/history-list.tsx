@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Download, ExternalLink } from "lucide-react";
 import { changePct, toCsv, type DailyMarket } from "@/lib/polymarket";
-import { formatBtc, formatEtShort, formatPct, formatVolume } from "@/lib/utils";
+import { formatBtc, formatEtShort, formatPct, formatUsd } from "@/lib/utils";
 import { OutcomeBadge } from "./outcome-badge";
 
 type Filter = "all" | "Up" | "Down" | "open";
@@ -43,7 +43,7 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
         <div>
           <h2 className="text-sm font-medium tracking-tight">Daily history</h2>
           <p className="text-xs text-muted">
-            {filtered.length} days · sourced from Polymarket Gamma
+            {filtered.length} days · close and Polymarket volume per session
           </p>
         </div>
         <button
@@ -89,11 +89,21 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
       {slice.length === 0 ? (
         <p className="mt-6 text-sm text-muted">No days match that filter.</p>
       ) : (
-        <ul className="mt-3 divide-y divide-line">
-          {slice.map((m) => (
-            <HistoryRow key={m.id} market={m} />
-          ))}
-        </ul>
+        <>
+          <div className="mt-4 hidden grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] gap-3 px-1 text-[11px] uppercase tracking-wider text-subtle sm:grid">
+            <span>Date</span>
+            <span>Result</span>
+            <span>Close</span>
+            <span>Volume</span>
+            <span className="text-right">Move</span>
+            <span />
+          </div>
+          <ul className="mt-1 divide-y divide-line">
+            {slice.map((m) => (
+              <HistoryRow key={m.id} market={m} />
+            ))}
+          </ul>
+        </>
       )}
 
       {visible < filtered.length ? (
@@ -113,6 +123,8 @@ function HistoryRow({ market }: { market: DailyMarket }) {
   const pct = changePct(market);
   const moveTone =
     pct === null ? "text-muted" : pct >= 0 ? "text-up" : "text-down";
+  const close = market.btcClose ? formatBtc(market.btcClose) : "—";
+  const volume = market.volume > 0 ? formatUsd(market.volume) : "—";
 
   return (
     <li className="py-3">
@@ -120,30 +132,32 @@ function HistoryRow({ market }: { market: DailyMarket }) {
         href={market.url}
         target="_blank"
         rel="noreferrer"
-        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-2 sm:grid sm:grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] sm:items-center sm:gap-3"
       >
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="w-24 shrink-0 font-mono text-sm tabular-nums text-muted">
-            {formatEtShort(market.date)}
+        <span className="font-mono text-sm tabular-nums text-muted">
+          {formatEtShort(market.date)}
+        </span>
+        <OutcomeBadge outcome={market.winner} size="sm" />
+        <span className="flex items-baseline justify-between gap-3 sm:block">
+          <span className="text-[11px] uppercase tracking-wider text-subtle sm:hidden">
+            Close
           </span>
-          <OutcomeBadge outcome={market.winner} size="sm" />
-          <span className="hidden truncate text-sm text-subtle md:inline">
-            {market.btcOpen && market.btcClose
-              ? `${formatBtc(market.btcOpen)} → ${formatBtc(market.btcClose)}`
-              : market.closed
-                ? "Resolved"
-                : "Open"}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-4 pl-24 sm:pl-0">
-          <span className={`font-mono text-sm tabular-nums ${moveTone}`}>
-            {pct === null ? "—" : formatPct(pct)}
+          <span className="font-mono text-sm tabular-nums text-fg">{close}</span>
+        </span>
+        <span className="flex items-baseline justify-between gap-3 sm:block">
+          <span className="text-[11px] uppercase tracking-wider text-subtle sm:hidden">
+            Volume
           </span>
           <span className="font-mono text-sm tabular-nums text-muted">
-            {formatVolume(market.volume)}
+            {volume}
           </span>
-          <ExternalLink className="size-3.5 shrink-0 text-subtle" strokeWidth={2} />
-        </div>
+        </span>
+        <span
+          className={`font-mono text-sm tabular-nums sm:text-right ${moveTone}`}
+        >
+          {pct === null ? "—" : formatPct(pct)}
+        </span>
+        <ExternalLink className="size-3.5 shrink-0 self-center text-subtle" strokeWidth={2} />
       </a>
     </li>
   );
