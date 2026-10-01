@@ -43,6 +43,8 @@ type GammaMarket = {
   outcomes?: unknown;
   outcomePrices?: unknown;
   volume?: unknown;
+  volumeNum?: unknown;
+  volumeClob?: unknown;
   closed?: unknown;
   endDate?: unknown;
   eventStartTime?: unknown;
@@ -58,6 +60,7 @@ type GammaEvent = {
   startTime?: unknown;
   startDate?: unknown;
   volume?: unknown;
+  volume24hr?: unknown;
   eventMetadata?: unknown;
   markets?: unknown;
 };
@@ -130,7 +133,13 @@ export function parseGammaEvent(raw: unknown): DailyMarket | null {
     winner: pickWinner(outcomes, prices, closed),
     upPrice: upIdx >= 0 ? (prices[upIdx] ?? null) : null,
     downPrice: downIdx >= 0 ? (prices[downIdx] ?? null) : null,
-    volume: asNumber(event.volume) ?? asNumber(market.volume) ?? 0,
+    volume:
+      asNumber(event.volume) ??
+      asNumber(market.volume) ??
+      asNumber(market.volumeNum) ??
+      asNumber(market.volumeClob) ??
+      asNumber(event.volume24hr) ??
+      0,
     btcOpen: open,
     btcClose: close,
     url: `${POLYMARKET_EVENT_URL}/${slug}`,
