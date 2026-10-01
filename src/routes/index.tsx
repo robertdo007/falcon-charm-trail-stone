@@ -33,8 +33,8 @@ function Home() {
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted">
             Every Bitcoin Up or Down daily market, resolved against Binance noon
-            ET. Type <span className="font-mono text-fg">check1d</span> to find
-            the longest recent tape that already printed in this history.
+            ET. Run check1d to find the longest recent tape that already printed
+            in this history.
           </p>
         </div>
         <p className="font-mono text-xs tabular-nums text-subtle">
@@ -44,7 +44,7 @@ function Home() {
 
       {tape.length > 0 ? (
         <div className="flex flex-nowrap gap-1 overflow-x-auto pb-1">
-          {tape.map((m) => (
+          {[...tape].reverse().map((m) => (
             <a
               key={m.id}
               href={m.url}
