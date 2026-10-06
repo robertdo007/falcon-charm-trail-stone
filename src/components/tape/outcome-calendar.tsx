@@ -1,4 +1,4 @@
-import type { DailyMarket } from "@/lib/polymarket";
+import { marketPhase, type DailyMarket } from "@/lib/polymarket";
 import { cn, formatEtShort } from "@/lib/utils";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -52,7 +52,7 @@ export function OutcomeCalendar({ markets }: { markets: DailyMarket[] }) {
                   key={date}
                   title={
                     m
-                      ? `${formatEtShort(date)} · ${m.winner ?? "Live"}`
+                      ? `${formatEtShort(date)} · ${m.winner ?? (marketPhase(m) === "live" ? "Live" : "Next")}`
                       : formatEtShort(date)
                   }
                   className={cn(
@@ -61,7 +61,7 @@ export function OutcomeCalendar({ markets }: { markets: DailyMarket[] }) {
                     m?.winner === "Up" && "bg-up",
                     m?.winner === "Down" && "bg-down",
                     m?.winner === "Tie" && "bg-muted",
-                    m && !m.closed && "bg-live",
+                    m && !m.winner && marketPhase(m) === "live" && "bg-live",
                   )}
                 />
               );
