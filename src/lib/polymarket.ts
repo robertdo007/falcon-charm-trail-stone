@@ -72,15 +72,22 @@ function asString(value: unknown): string | null {
 function pickWinner(
   outcomes: string[],
   prices: number[],
-  closed: boolean,
+  open: number | null,
+  close: number | null,
+  officialClosed: boolean,
 ): Outcome | null {
-  if (!closed) return null;
+  if (open != null && close != null) {
+    if (close > open) return "Up";
+    if (close < open) return "Down";
+    return "Tie";
+  }
   const upIdx = outcomes.findIndex((o) => o.toLowerCase() === "up");
   const downIdx = outcomes.findIndex((o) => o.toLowerCase() === "down");
   const up = upIdx >= 0 ? (prices[upIdx] ?? 0) : 0;
   const down = downIdx >= 0 ? (prices[downIdx] ?? 0) : 0;
   if (up >= 0.99 && down <= 0.01) return "Up";
   if (down >= 0.99 && up <= 0.01) return "Down";
+  if (!officialClosed) return null;
   if (Math.abs(up - down) < 0.05) return "Tie";
   return up > down ? "Up" : "Down";
 }
@@ -111,13 +118,15 @@ export function parseGammaEvent(raw: unknown): DailyMarket | null {
   const prices = parseJsonArray<string | number>(market.outcomePrices).map(
     (p) => asNumber(p) ?? 0,
   );
-  const closed = Boolean(event.closed ?? market.closed);
   const endAt = asString(event.endDate) ?? asString(market.endDate);
   if (!endAt) return null;
 
   const upIdx = outcomes.findIndex((o) => o.toLowerCase() === "up");
   const downIdx = outcomes.findIndex((o) => o.toLowerCase() === "down");
   const { open, close } = metadataPrices(event.eventMetadata);
+  const officialClosed = Boolean(event.closed ?? market.closed);
+  const winner = pickWinner(outcomes, prices, open, close, officialClosed);
+  const closed = officialClosed || winner !== null;
 
   return {
     id: asString(event.id) ?? slug,
@@ -130,7 +139,7 @@ export function parseGammaEvent(raw: unknown): DailyMarket | null {
       asString(market.eventStartTime) ??
       asString(event.startDate),
     closed,
-    winner: pickWinner(outcomes, prices, closed),
+    winner,
     upPrice: upIdx >= 0 ? (prices[upIdx] ?? null) : null,
     downPrice: downIdx >= 0 ? (prices[downIdx] ?? null) : null,
     volume:
@@ -150,7 +159,15 @@ export function uniqueByDate(markets: DailyMarket[]): DailyMarket[] {
   const map = new Map<string, DailyMarket>();
   for (const m of markets) {
     const prev = map.get(m.date);
-    if (!prev || m.volume > prev.volume) map.set(m.date, m);
+    if (!prev) {
+      map.set(m.date, m);
+      continue;
+    }
+    if (m.closed !== prev.closed) {
+      map.set(m.date, m.closed ? m : prev);
+      continue;
+    }
+    if (m.volume > prev.volume) map.set(m.date, m);
   }
   return [...map.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 }
