@@ -1,7 +1,53 @@
-import { asNumber, etDateKey, parseJsonArray } from "./utils";
+import { asNumber, etDateKey, etDateTimeKey, parseJsonArray } from "./utils";
 
 export const BTC_DAILY_SERIES_ID = "41";
 export const POLYMARKET_EVENT_URL = "https://polymarket.com/event";
+
+export type Timeframe = "1d" | "15m";
+
+export const TIMEFRAMES: Record<
+  Timeframe,
+  {
+    seriesId: string;
+    slugPrefix: string;
+    pages: number;
+    label: string;
+    title: string;
+    command: string;
+    unit: string;
+    blurb: string;
+    resolveNote: string;
+    spanMinutes: number;
+  }
+> = {
+  "1d": {
+    seriesId: BTC_DAILY_SERIES_ID,
+    slugPrefix: "bitcoin-up-or-down-on-",
+    pages: 8,
+    label: "1D",
+    title: "BTC Daily Tape",
+    command: "check1d",
+    unit: "days",
+    blurb:
+      "Every Bitcoin Up or Down daily market, resolved against Binance noon ET. Run check1d to find the longest recent tape that already printed in this history.",
+    resolveNote: "Resolves on Binance BTC/USDT noon ET close vs prior noon.",
+    spanMinutes: 0,
+  },
+  "15m": {
+    seriesId: "10192",
+    slugPrefix: "btc-updown-15m-",
+    pages: 12,
+    label: "15m",
+    title: "BTC 15m Tape",
+    command: "check15m",
+    unit: "windows",
+    blurb:
+      "Bitcoin Up or Down 15-minute windows, settled on Chainlink BTC/USD. Run check15m on this tape — the latest stretch Polymarket has published, not the full archive.",
+    resolveNote:
+      "Resolves on Chainlink BTC/USD at the end of the 15-minute window vs the open.",
+    spanMinutes: 15,
+  },
+};
 
 export type Outcome = "Up" | "Down" | "Tie";
 export type MarketPhase = "live" | "next" | "settled";
@@ -104,11 +150,15 @@ function metadataPrices(raw: unknown): {
   };
 }
 
-export function parseGammaEvent(raw: unknown): DailyMarket | null {
+export function parseGammaEvent(
+  raw: unknown,
+  tf: Timeframe = "1d",
+): DailyMarket | null {
   if (!raw || typeof raw !== "object") return null;
   const event = raw as GammaEvent;
   const slug = asString(event.slug);
-  if (!slug || !slug.startsWith("bitcoin-up-or-down-on-")) return null;
+  const spec = TIMEFRAMES[tf];
+  if (!slug || !slug.startsWith(spec.slugPrefix)) return null;
 
   const markets = Array.isArray(event.markets)
     ? (event.markets as GammaMarket[])
@@ -127,17 +177,18 @@ export function parseGammaEvent(raw: unknown): DailyMarket | null {
   const officialClosed = Boolean(event.closed ?? market.closed);
   const winner = pickWinner(outcomes, prices, open, close, officialClosed);
   const closed = officialClosed || winner !== null;
+  const startAt =
+    asString(event.startTime) ??
+    asString(market.eventStartTime) ??
+    asString(event.startDate);
 
   return {
     id: asString(event.id) ?? slug,
     slug,
     title: asString(event.title) ?? asString(market.question) ?? slug,
-    date: etDateKey(endAt),
+    date: sessionKey(tf, slug, endAt, startAt),
     endAt,
-    startAt:
-      asString(event.startTime) ??
-      asString(market.eventStartTime) ??
-      asString(event.startDate),
+    startAt,
     closed,
     winner,
     upPrice: upIdx >= 0 ? (prices[upIdx] ?? null) : null,
@@ -153,6 +204,34 @@ export function parseGammaEvent(raw: unknown): DailyMarket | null {
     btcClose: close,
     url: `${POLYMARKET_EVENT_URL}/${slug}`,
   };
+}
+
+function sessionKey(
+  tf: Timeframe,
+  slug: string,
+  endAt: string,
+  startAt: string | null,
+): string {
+  if (tf === "1d") return etDateKey(endAt);
+  const stamp = slug.match(/-(\d{9,})$/)?.[1];
+  const iso = stamp
+    ? new Date(Number(stamp) * 1000).toISOString()
+    : (startAt ?? endAt);
+  return etDateTimeKey(iso);
+}
+
+export function trimUpcoming(
+  markets: DailyMarket[],
+  tf: Timeframe,
+  now = Date.now(),
+): DailyMarket[] {
+  if (tf !== "15m") return markets;
+  const horizon = now + 20 * 60 * 1000;
+  return markets.filter((m) => {
+    if (m.closed || marketPhase(m, now) !== "next") return true;
+    const start = m.startAt ? Date.parse(m.startAt) : Number.POSITIVE_INFINITY;
+    return start <= horizon;
+  });
 }
 
 export function uniqueByDate(markets: DailyMarket[]): DailyMarket[] {

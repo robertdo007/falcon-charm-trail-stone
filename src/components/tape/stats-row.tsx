@@ -1,9 +1,18 @@
-import type { DailyStats } from "@/lib/polymarket";
+import type { DailyStats, Timeframe } from "@/lib/polymarket";
 import { formatUsd } from "@/lib/utils";
 
-export function StatsRow({ stats }: { stats: DailyStats }) {
+export function StatsRow({
+  stats,
+  timeframe = "1d",
+}: {
+  stats: DailyStats;
+  timeframe?: Timeframe;
+}) {
   const items = [
-    { label: "Resolved days", value: String(stats.resolved) },
+    {
+      label: timeframe === "15m" ? "Resolved windows" : "Resolved days",
+      value: String(stats.resolved),
+    },
     {
       label: "Up / Down",
       value: `${stats.upDays} / ${stats.downDays}`,

@@ -1,6 +1,6 @@
 import { ExternalLink } from "lucide-react";
-import { marketPhase, type DailyMarket } from "@/lib/polymarket";
-import { formatBtc, formatEtDay, formatVolume } from "@/lib/utils";
+import { marketPhase, type DailyMarket, type Timeframe, TIMEFRAMES } from "@/lib/polymarket";
+import { formatBtc, formatSessionTitle, formatVolume } from "@/lib/utils";
 import { OutcomeBadge } from "./outcome-badge";
 
 function implied(price: number | null): string {
@@ -14,11 +14,18 @@ const PHASE_LABEL = {
   settled: "Settled",
 } as const;
 
-export function LiveCard({ market }: { market: DailyMarket | null }) {
+export function LiveCard({
+  market,
+  timeframe = "1d",
+}: {
+  market: DailyMarket | null;
+  timeframe?: Timeframe;
+}) {
+  const spec = TIMEFRAMES[timeframe];
   if (!market) {
     return (
       <section className="rounded-xl border border-line bg-surface p-5 shadow-panel md:p-6">
-        <p className="text-sm text-muted">No live daily market right now.</p>
+        <p className="text-sm text-muted">No live market right now.</p>
       </section>
     );
   }
@@ -35,13 +42,11 @@ export function LiveCard({ market }: { market: DailyMarket | null }) {
             {PHASE_LABEL[phase]}
           </p>
           <h2 className="mt-1 text-xl font-medium tracking-tight md:text-2xl">
-            {formatEtDay(market.date)}
+            {formatSessionTitle(market.date, spec.spanMinutes)}
           </h2>
-          <p className="mt-1 text-sm text-muted">
-            Resolves on Binance BTC/USDT noon ET close vs prior noon.
-          </p>
+          <p className="mt-1 text-sm text-muted">{spec.resolveNote}</p>
         </div>
-        <OutcomeBadge outcome={market.winner} />
+        <OutcomeBadge outcome={market.winner} phase={phase} />
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">

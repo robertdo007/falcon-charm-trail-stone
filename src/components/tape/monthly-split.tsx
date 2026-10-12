@@ -1,4 +1,4 @@
-import { marketPhase, type DailyMarket } from "@/lib/polymarket";
+import { marketPhase, type DailyMarket, type Timeframe } from "@/lib/polymarket";
 import { cn, formatEtShort } from "@/lib/utils";
 
 type MonthRow = {
@@ -10,7 +10,14 @@ type MonthRow = {
   down: number;
 };
 
-export function MonthlySplit({ markets }: { markets: DailyMarket[] }) {
+export function MonthlySplit({
+  markets,
+  timeframe = "1d",
+}: {
+  markets: DailyMarket[];
+  timeframe?: Timeframe;
+}) {
+  if (timeframe === "15m") return <HourSplit markets={markets} />;
   const byDate = new Map(markets.map((m) => [m.date, m]));
   const map = new Map<string, MonthRow>();
 
@@ -124,4 +131,65 @@ function monthLabel(key: string): string {
     year: "2-digit",
     timeZone: "UTC",
   });
+}
+
+function HourSplit({ markets }: { markets: DailyMarket[] }) {
+  const buckets = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    up: 0,
+    down: 0,
+  }));
+  for (const market of markets) {
+    if (!market.closed || (market.winner !== "Up" && market.winner !== "Down")) {
+      continue;
+    }
+    const hour = Number(market.date.slice(11, 13));
+    const bucket = buckets[hour];
+    if (!bucket) continue;
+    if (market.winner === "Up") bucket.up += 1;
+    else bucket.down += 1;
+  }
+
+  return (
+    <section className="min-w-0 rounded-xl border border-line bg-surface p-4 md:p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-medium tracking-tight">Hour of day</h2>
+        <p className="text-xs text-subtle">ET open hour</p>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-1.5">
+        {buckets.map((bucket) => {
+          const total = bucket.up + bucket.down || 1;
+          const upPct = ((bucket.up / total) * 100).toFixed(0);
+          const empty = bucket.up + bucket.down === 0;
+          return (
+            <div key={bucket.hour} className="flex items-center gap-2">
+              <span className="w-8 shrink-0 font-mono text-[11px] text-muted">
+                {hourLabel(bucket.hour)}
+              </span>
+              <div className="flex h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-raised">
+                {empty ? null : (
+                  <>
+                    <div
+                      className="h-full bg-up"
+                      style={{ width: `${(bucket.up / total) * 100}%` }}
+                    />
+                    <div className="h-full flex-1 bg-down" />
+                  </>
+                )}
+              </div>
+              <span className="w-12 shrink-0 text-right font-mono text-[11px] tabular-nums text-subtle">
+                {empty ? "—" : `${upPct}%`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function hourLabel(hour: number): string {
+  const suffix = hour >= 12 ? "p" : "a";
+  const h12 = hour % 12 || 12;
+  return `${h12}${suffix}`;
 }

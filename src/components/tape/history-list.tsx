@@ -1,12 +1,18 @@
 import { useMemo, useState } from "react";
 import { Download, ExternalLink } from "lucide-react";
-import { changePct, toCsv, type DailyMarket } from "@/lib/polymarket";
-import { formatBtc, formatEtShort, formatPct, formatUsd } from "@/lib/utils";
+import { changePct, marketPhase, toCsv, type DailyMarket, type Timeframe } from "@/lib/polymarket";
+import { formatBtc, formatPct, formatUsd, formatWindow } from "@/lib/utils";
 import { OutcomeBadge } from "./outcome-badge";
 
 type Filter = "all" | "Up" | "Down" | "open";
 
-export function HistoryList({ markets }: { markets: DailyMarket[] }) {
+export function HistoryList({
+  markets,
+  timeframe = "1d",
+}: {
+  markets: DailyMarket[];
+  timeframe?: Timeframe;
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [visible, setVisible] = useState(40);
@@ -32,7 +38,8 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "polymarket-btc-daily.csv";
+    a.download =
+      timeframe === "15m" ? "polymarket-btc-15m.csv" : "polymarket-btc-daily.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -41,9 +48,13 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
     <section className="min-w-0 rounded-xl border border-line bg-surface p-4 shadow-panel md:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-medium tracking-tight">Daily history</h2>
+          <h2 className="text-sm font-medium tracking-tight">
+            {timeframe === "15m" ? "15m history" : "Daily history"}
+          </h2>
           <p className="text-xs text-muted">
-            {filtered.length} days · close and Polymarket volume per session
+            {filtered.length}{" "}
+            {timeframe === "15m" ? "windows" : "days"} · close and Polymarket
+            volume per session
           </p>
         </div>
         <button
@@ -87,11 +98,17 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
       </div>
 
       {slice.length === 0 ? (
-        <p className="mt-6 text-sm text-muted">No days match that filter.</p>
+        <p className="mt-6 text-sm text-muted">No sessions match that filter.</p>
       ) : (
         <>
-          <div className="mt-4 hidden grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] gap-3 px-1 text-[11px] uppercase tracking-wider text-subtle sm:grid">
-            <span>Date</span>
+          <div
+            className={
+              timeframe === "15m"
+                ? "mt-4 hidden grid-cols-[9.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] gap-3 px-1 text-[11px] uppercase tracking-wider text-subtle sm:grid"
+                : "mt-4 hidden grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] gap-3 px-1 text-[11px] uppercase tracking-wider text-subtle sm:grid"
+            }
+          >
+            <span>{timeframe === "15m" ? "Window" : "Date"}</span>
             <span>Result</span>
             <span>Close</span>
             <span>Volume</span>
@@ -100,7 +117,7 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
           </div>
           <ul className="mt-1 divide-y divide-line">
             {slice.map((m) => (
-              <HistoryRow key={m.id} market={m} />
+              <HistoryRow key={m.id} market={m} wide={timeframe === "15m"} />
             ))}
           </ul>
         </>
@@ -119,12 +136,21 @@ export function HistoryList({ markets }: { markets: DailyMarket[] }) {
   );
 }
 
-function HistoryRow({ market }: { market: DailyMarket }) {
+function HistoryRow({
+  market,
+  wide,
+}: {
+  market: DailyMarket;
+  wide: boolean;
+}) {
   const pct = changePct(market);
   const moveTone =
     pct === null ? "text-muted" : pct >= 0 ? "text-up" : "text-down";
   const close = market.btcClose ? formatBtc(market.btcClose) : "—";
   const volume = market.volume > 0 ? formatUsd(market.volume) : "—";
+  const cols = wide
+    ? "sm:grid-cols-[9.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem]"
+    : "sm:grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem]";
 
   return (
     <li className="py-3">
@@ -132,12 +158,12 @@ function HistoryRow({ market }: { market: DailyMarket }) {
         href={market.url}
         target="_blank"
         rel="noreferrer"
-        className="flex flex-col gap-2 sm:grid sm:grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] sm:items-center sm:gap-3"
+        className={`flex flex-col gap-2 sm:grid sm:items-center sm:gap-3 ${cols}`}
       >
         <span className="font-mono text-sm tabular-nums text-muted">
-          {formatEtShort(market.date)}
+          {formatWindow(market.date)}
         </span>
-        <OutcomeBadge outcome={market.winner} size="sm" />
+        <OutcomeBadge outcome={market.winner} phase={marketPhase(market)} size="sm" />
         <span className="flex items-baseline justify-between gap-3 sm:block">
           <span className="text-[11px] uppercase tracking-wider text-subtle sm:hidden">
             Close

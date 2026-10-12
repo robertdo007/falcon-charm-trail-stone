@@ -8,7 +8,15 @@ import {
 import type { DailyMarket } from "@/lib/polymarket";
 import { OutcomeBadge } from "./outcome-badge";
 
-export function Check1dPanel({ markets }: { markets: DailyMarket[] }) {
+export function Check1dPanel({
+  markets,
+  command = "check1d",
+  unit = "days",
+}: {
+  markets: DailyMarket[];
+  command?: string;
+  unit?: string;
+}) {
   const [ran, setRan] = useState(false);
   const result = useMemo(
     () => (ran ? findLongestCheck1d(markets) : null),
@@ -22,10 +30,11 @@ export function Check1dPanel({ markets }: { markets: DailyMarket[] }) {
           <p className="font-mono text-xs uppercase tracking-widest text-subtle">
             Command
           </p>
-          <h2 className="mt-1 text-lg font-medium tracking-tight">check1d</h2>
+          <h2 className="mt-1 text-lg font-medium tracking-tight">{command}</h2>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            Pull the live Polymarket daily tape, take the latest Up/Down streak,
-            and grow it until that sequence no longer appears in history.
+            Take the latest Up/Down streak and grow it until that sequence no
+            longer appears earlier in this {unit === "windows" ? "15m" : "daily"}{" "}
+            tape.
           </p>
         </div>
         <button
@@ -38,20 +47,22 @@ export function Check1dPanel({ markets }: { markets: DailyMarket[] }) {
         </button>
       </div>
 
-      {result ? <Check1dResultView result={result} /> : null}
+      {result ? <Check1dResultView result={result} unit={unit} /> : null}
     </section>
   );
 }
 
 function Check1dResultView({
   result,
+  unit,
 }: {
   result: ReturnType<typeof findLongestCheck1d>;
+  unit: string;
 }) {
   if (result.history.length === 0) {
     return (
       <p className="mt-5 text-sm text-muted">
-        No repeating pattern in {result.seriesLength} settled Polymarket days.
+        No repeating pattern in {result.seriesLength} settled {unit}.
       </p>
     );
   }
@@ -59,9 +70,9 @@ function Check1dResultView({
   const longest = result.longest;
   const lean =
     result.signal === "Up"
-      ? "Next day leaned Up after this tape"
+      ? `Next ${unit === "windows" ? "window" : "day"} leaned Up after this tape`
       : result.signal === "Down"
-        ? "Next day leaned Down after this tape"
+        ? `Next ${unit === "windows" ? "window" : "day"} leaned Down after this tape`
         : "No edge after this tape";
 
   return (
@@ -70,7 +81,7 @@ function Check1dResultView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-mono text-xs uppercase tracking-widest text-subtle">
-              Longest hit · {result.seriesLength} settled days
+              Longest hit · {result.seriesLength} settled {unit}
             </p>
             <p className="mt-1 text-sm text-muted">
               {result.from} → {result.to}

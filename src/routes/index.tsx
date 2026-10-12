@@ -1,6 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { getBtcDailyMarkets } from "@/lib/btc-daily";
-import { computeStats, pickHero } from "@/lib/polymarket";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { getBtcMarkets } from "@/lib/btc-daily";
+import {
+  computeStats,
+  pickHero,
+  TIMEFRAMES,
+  type Timeframe,
+} from "@/lib/polymarket";
 import { Check1dPanel } from "@/components/tape/check1d-panel";
 import { HistoryList } from "@/components/tape/history-list";
 import { LiveCard } from "@/components/tape/live-card";
@@ -8,18 +13,25 @@ import { MonthlySplit } from "@/components/tape/monthly-split";
 import { OutcomeCalendar } from "@/components/tape/outcome-calendar";
 import { StatsRow } from "@/components/tape/stats-row";
 import { OutcomeBadge } from "@/components/tape/outcome-badge";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
-  loader: () => getBtcDailyMarkets(),
+  validateSearch: (search: Record<string, unknown>) => ({
+    tf: search.tf === "15m" ? ("15m" as const) : ("1d" as const),
+  }),
+  loaderDeps: ({ search }) => ({ tf: search.tf }),
+  loader: ({ deps }) => getBtcMarkets({ data: { tf: deps.tf } }),
   pendingComponent: Pending,
   component: Home,
 });
 
 function Home() {
   const markets = Route.useLoaderData();
+  const { tf } = Route.useSearch();
+  const spec = TIMEFRAMES[tf];
   const stats = computeStats(markets);
   const live = pickHero(markets);
-  const tape = markets.filter((m) => m.closed).slice(0, 28);
+  const tape = markets.filter((m) => m.closed).slice(0, tf === "15m" ? 48 : 28);
 
   return (
     <main className="mx-auto flex min-h-dvh min-w-0 max-w-6xl flex-col gap-5 px-4 py-6 pb-16 md:gap-6 md:px-6 md:py-10">
@@ -29,17 +41,16 @@ function Home() {
             Polymarket
           </p>
           <h1 className="mt-1 text-3xl font-medium tracking-tight md:text-4xl">
-            BTC Daily Tape
+            {spec.title}
           </h1>
-          <p className="mt-2 max-w-xl text-sm text-muted">
-            Every Bitcoin Up or Down daily market, resolved against Binance noon
-            ET. Run check1d to find the longest recent tape that already printed
-            in this history.
+          <p className="mt-2 max-w-xl text-sm text-muted">{spec.blurb}</p>
+        </div>
+        <div className="flex flex-col items-start gap-2 md:items-end">
+          <TfSwitch tf={tf} />
+          <p className="font-mono text-xs tabular-nums text-subtle">
+            {markets.length} sessions indexed
           </p>
         </div>
-        <p className="font-mono text-xs tabular-nums text-subtle">
-          {markets.length} sessions indexed
-        </p>
       </header>
 
       {tape.length > 0 ? (
@@ -59,26 +70,51 @@ function Home() {
         </div>
       ) : null}
 
-      <LiveCard market={live} />
-      <Check1dPanel markets={markets} />
-      <StatsRow stats={stats} />
+      <LiveCard market={live} timeframe={tf} />
+      <Check1dPanel
+        key={tf}
+        markets={markets}
+        command={spec.command}
+        unit={spec.unit}
+      />
+      <StatsRow stats={stats} timeframe={tf} />
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-5">
         <div className="min-w-0 lg:col-span-3">
-          <OutcomeCalendar markets={markets} />
+          <OutcomeCalendar markets={markets} timeframe={tf} />
         </div>
         <div className="min-w-0 lg:col-span-2">
-          <MonthlySplit markets={markets} />
+          <MonthlySplit markets={markets} timeframe={tf} />
         </div>
       </div>
 
-      <HistoryList markets={markets} />
+      <HistoryList key={tf} markets={markets} timeframe={tf} />
 
       <footer className="pt-2 text-xs text-subtle">
-        Not financial advice. check1d uses Polymarket noon-ET settlements, not
-        Binance calendar-day candles.
+        Not financial advice. {spec.command} uses Polymarket settlements
+        {tf === "1d" ? ", not Binance calendar-day candles." : " on Chainlink BTC/USD."}
       </footer>
     </main>
+  );
+}
+
+function TfSwitch({ tf }: { tf: Timeframe }) {
+  return (
+    <div className="inline-flex rounded-md border border-line bg-raised p-1">
+      {(["1d", "15m"] as const).map((id) => (
+        <Link
+          key={id}
+          to="/"
+          search={{ tf: id }}
+          className={cn(
+            "inline-flex min-h-11 min-w-14 items-center justify-center rounded-sm px-3 text-sm font-medium",
+            tf === id ? "bg-accent text-accent-fg" : "text-muted",
+          )}
+        >
+          {TIMEFRAMES[id].label}
+        </Link>
+      ))}
+    </div>
   );
 }
 
