@@ -17,7 +17,7 @@ export function MonthlySplit({
   markets: DailyMarket[];
   timeframe?: Timeframe;
 }) {
-  if (timeframe === "15m") return <HourSplit markets={markets} />;
+  if (timeframe !== "1d") return <HourSplit markets={markets} />;
   const byDate = new Map(markets.map((m) => [m.date, m]));
   const map = new Map<string, MonthRow>();
 

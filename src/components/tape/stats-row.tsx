@@ -10,7 +10,12 @@ export function StatsRow({
 }) {
   const items = [
     {
-      label: timeframe === "15m" ? "Resolved windows" : "Resolved days",
+      label:
+        timeframe === "1d"
+          ? "Resolved days"
+          : timeframe === "1h"
+            ? "Resolved hours"
+            : "Resolved windows",
       value: String(stats.resolved),
     },
     {

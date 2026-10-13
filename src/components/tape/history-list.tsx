@@ -39,7 +39,11 @@ export function HistoryList({
     const a = document.createElement("a");
     a.href = url;
     a.download =
-      timeframe === "15m" ? "polymarket-btc-15m.csv" : "polymarket-btc-daily.csv";
+      timeframe === "15m"
+        ? "polymarket-btc-15m.csv"
+        : timeframe === "1h"
+          ? "polymarket-btc-1h.csv"
+          : "polymarket-btc-daily.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -49,12 +53,20 @@ export function HistoryList({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-medium tracking-tight">
-            {timeframe === "15m" ? "15m history" : "Daily history"}
+            {timeframe === "15m"
+              ? "15m history"
+              : timeframe === "1h"
+                ? "1h history"
+                : "Daily history"}
           </h2>
           <p className="text-xs text-muted">
             {filtered.length}{" "}
-            {timeframe === "15m" ? "windows" : "days"} · close and Polymarket
-            volume per session
+            {timeframe === "15m"
+              ? "windows"
+              : timeframe === "1h"
+                ? "hours"
+                : "days"}{" "}
+            · close and Polymarket volume per session
           </p>
         </div>
         <button
@@ -103,12 +115,12 @@ export function HistoryList({
         <>
           <div
             className={
-              timeframe === "15m"
+              timeframe !== "1d"
                 ? "mt-4 hidden grid-cols-[9.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] gap-3 px-1 text-[11px] uppercase tracking-wider text-subtle sm:grid"
                 : "mt-4 hidden grid-cols-[6.5rem_4.5rem_minmax(0,1fr)_minmax(0,1fr)_4.75rem_1.25rem] gap-3 px-1 text-[11px] uppercase tracking-wider text-subtle sm:grid"
             }
           >
-            <span>{timeframe === "15m" ? "Window" : "Date"}</span>
+            <span>{timeframe === "1d" ? "Date" : "Window"}</span>
             <span>Result</span>
             <span>Close</span>
             <span>Volume</span>
@@ -117,7 +129,7 @@ export function HistoryList({
           </div>
           <ul className="mt-1 divide-y divide-line">
             {slice.map((m) => (
-              <HistoryRow key={m.id} market={m} wide={timeframe === "15m"} />
+              <HistoryRow key={m.id} market={m} wide={timeframe !== "1d"} />
             ))}
           </ul>
         </>

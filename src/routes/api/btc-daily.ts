@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TIMEFRAMES, type Timeframe } from "@/lib/polymarket";
+import { parseTimeframe, TIMEFRAMES } from "@/lib/polymarket";
 
 export const Route = createFileRoute("/api/btc-daily")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const tf: Timeframe =
-          new URL(request.url).searchParams.get("tf") === "15m" ? "15m" : "1d";
+        const tf = parseTimeframe(new URL(request.url).searchParams.get("tf"));
         const spec = TIMEFRAMES[tf];
         const { loadBtcMarkets } = await import("@/lib/polymarket.server.ts");
         const markets = await loadBtcMarkets(tf);

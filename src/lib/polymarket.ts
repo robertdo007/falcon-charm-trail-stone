@@ -3,13 +3,22 @@ import { asNumber, etDateKey, etDateTimeKey, parseJsonArray } from "./utils";
 export const BTC_DAILY_SERIES_ID = "41";
 export const POLYMARKET_EVENT_URL = "https://polymarket.com/event";
 
-export type Timeframe = "1d" | "15m";
+export type Timeframe = "1d" | "1h" | "15m";
+
+export function parseTimeframe(value: unknown): Timeframe {
+  if (value === "1h" || value === "15m" || value === "1d") return value;
+  if (value && typeof value === "object" && "tf" in value) {
+    return parseTimeframe((value as { tf?: unknown }).tf);
+  }
+  return "1d";
+}
 
 export const TIMEFRAMES: Record<
   Timeframe,
   {
     seriesId: string;
     slugPrefix: string;
+    slugExclude?: string;
     pages: number;
     label: string;
     title: string;
@@ -17,7 +26,9 @@ export const TIMEFRAMES: Record<
     unit: string;
     blurb: string;
     resolveNote: string;
+    footer: string;
     spanMinutes: number;
+    leadMinutes: number;
   }
 > = {
   "1d": {
@@ -31,7 +42,27 @@ export const TIMEFRAMES: Record<
     blurb:
       "Every Bitcoin Up or Down daily market, resolved against Binance noon ET. Run check1d to find the longest recent tape that already printed in this history.",
     resolveNote: "Resolves on Binance BTC/USDT noon ET close vs prior noon.",
+    footer:
+      "Not financial advice. check1d uses Polymarket noon-ET settlements, not Binance calendar-day candles.",
     spanMinutes: 0,
+    leadMinutes: 0,
+  },
+  "1h": {
+    seriesId: "10114",
+    slugPrefix: "bitcoin-up-or-down-",
+    slugExclude: "bitcoin-up-or-down-on-",
+    pages: 8,
+    label: "1H",
+    title: "BTC 1h Tape",
+    command: "check1h",
+    unit: "hours",
+    blurb:
+      "Bitcoin Up or Down hourly markets, resolved on the Binance BTC/USDT 1H candle. Run check1h on the recent tape, not the full archive.",
+    resolveNote: "Resolves on the Binance BTC/USDT 1 hour candle: close vs open.",
+    footer:
+      "Not financial advice. check1h uses Polymarket settlements on the Binance BTC/USDT 1H candle.",
+    spanMinutes: 60,
+    leadMinutes: 70,
   },
   "15m": {
     seriesId: "10192",
@@ -45,7 +76,10 @@ export const TIMEFRAMES: Record<
       "Bitcoin Up or Down 15-minute windows, settled on Chainlink BTC/USD. Run check15m on this tape — the latest stretch Polymarket has published, not the full archive.",
     resolveNote:
       "Resolves on Chainlink BTC/USD at the end of the 15-minute window vs the open.",
+    footer:
+      "Not financial advice. check15m uses Polymarket settlements on Chainlink BTC/USD.",
     spanMinutes: 15,
+    leadMinutes: 20,
   },
 };
 
@@ -121,11 +155,12 @@ function pickWinner(
   open: number | null,
   close: number | null,
   officialClosed: boolean,
+  upOnEqual: boolean,
 ): Outcome | null {
   if (open != null && close != null) {
     if (close > open) return "Up";
     if (close < open) return "Down";
-    return "Tie";
+    return upOnEqual ? "Up" : "Tie";
   }
   const upIdx = outcomes.findIndex((o) => o.toLowerCase() === "up");
   const downIdx = outcomes.findIndex((o) => o.toLowerCase() === "down");
@@ -159,6 +194,7 @@ export function parseGammaEvent(
   const slug = asString(event.slug);
   const spec = TIMEFRAMES[tf];
   if (!slug || !slug.startsWith(spec.slugPrefix)) return null;
+  if (spec.slugExclude && slug.startsWith(spec.slugExclude)) return null;
 
   const markets = Array.isArray(event.markets)
     ? (event.markets as GammaMarket[])
@@ -175,7 +211,14 @@ export function parseGammaEvent(
   const downIdx = outcomes.findIndex((o) => o.toLowerCase() === "down");
   const { open, close } = metadataPrices(event.eventMetadata);
   const officialClosed = Boolean(event.closed ?? market.closed);
-  const winner = pickWinner(outcomes, prices, open, close, officialClosed);
+  const winner = pickWinner(
+    outcomes,
+    prices,
+    open,
+    close,
+    officialClosed,
+    tf === "1h",
+  );
   const closed = officialClosed || winner !== null;
   const startAt =
     asString(event.startTime) ??
@@ -213,11 +256,17 @@ function sessionKey(
   startAt: string | null,
 ): string {
   if (tf === "1d") return etDateKey(endAt);
-  const stamp = slug.match(/-(\d{9,})$/)?.[1];
-  const iso = stamp
-    ? new Date(Number(stamp) * 1000).toISOString()
-    : (startAt ?? endAt);
-  return etDateTimeKey(iso);
+  if (tf === "15m") {
+    const stamp = slug.match(/-(\d{9,})$/)?.[1];
+    const iso = stamp
+      ? new Date(Number(stamp) * 1000).toISOString()
+      : (startAt ?? endAt);
+    return etDateTimeKey(iso);
+  }
+  const startMs = startAt
+    ? Date.parse(startAt)
+    : Date.parse(endAt) - TIMEFRAMES[tf].spanMinutes * 60_000;
+  return etDateTimeKey(new Date(startMs).toISOString());
 }
 
 export function trimUpcoming(
@@ -225,8 +274,9 @@ export function trimUpcoming(
   tf: Timeframe,
   now = Date.now(),
 ): DailyMarket[] {
-  if (tf !== "15m") return markets;
-  const horizon = now + 20 * 60 * 1000;
+  const lead = TIMEFRAMES[tf].leadMinutes;
+  if (lead <= 0) return markets;
+  const horizon = now + lead * 60_000;
   return markets.filter((m) => {
     if (m.closed || marketPhase(m, now) !== "next") return true;
     const start = m.startAt ? Date.parse(m.startAt) : Number.POSITIVE_INFINITY;

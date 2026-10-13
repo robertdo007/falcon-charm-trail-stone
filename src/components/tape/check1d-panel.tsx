@@ -33,8 +33,7 @@ export function Check1dPanel({
           <h2 className="mt-1 text-lg font-medium tracking-tight">{command}</h2>
           <p className="mt-1 max-w-xl text-sm text-muted">
             Take the latest Up/Down streak and grow it until that sequence no
-            longer appears earlier in this {unit === "windows" ? "15m" : "daily"}{" "}
-            tape.
+            longer appears earlier in this tape.
           </p>
         </div>
         <button
@@ -50,6 +49,12 @@ export function Check1dPanel({
       {result ? <Check1dResultView result={result} unit={unit} /> : null}
     </section>
   );
+}
+
+function nextNoun(unit: string): string {
+  if (unit === "hours") return "hour";
+  if (unit === "windows") return "window";
+  return "day";
 }
 
 function Check1dResultView({
@@ -70,9 +75,9 @@ function Check1dResultView({
   const longest = result.longest;
   const lean =
     result.signal === "Up"
-      ? `Next ${unit === "windows" ? "window" : "day"} leaned Up after this tape`
+      ? `Next ${nextNoun(unit)} leaned Up after this tape`
       : result.signal === "Down"
-        ? `Next ${unit === "windows" ? "window" : "day"} leaned Down after this tape`
+        ? `Next ${nextNoun(unit)} leaned Down after this tape`
         : "No edge after this tape";
 
   return (

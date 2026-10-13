@@ -1,4 +1,4 @@
-import { marketPhase, type DailyMarket, type Timeframe } from "@/lib/polymarket";
+import { marketPhase, TIMEFRAMES, type DailyMarket, type Timeframe } from "@/lib/polymarket";
 import { cn, formatEtShort, formatWindow } from "@/lib/utils";
 
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -23,7 +23,15 @@ export function OutcomeCalendar({
   markets: DailyMarket[];
   timeframe?: Timeframe;
 }) {
-  if (timeframe === "15m") return <WindowGrid markets={markets} />;
+  if (timeframe !== "1d") {
+    return (
+      <WindowGrid
+        markets={markets}
+        minutes={TIMEFRAMES[timeframe].spanMinutes}
+        title={timeframe === "1h" ? "1h windows" : "15m windows"}
+      />
+    );
+  }
   const byDate = new Map(markets.map((m) => [m.date, m]));
   const newest = markets[0]?.date;
   if (!newest) return null;
@@ -91,27 +99,46 @@ export function OutcomeCalendar({
   );
 }
 
-function WindowGrid({ markets }: { markets: DailyMarket[] }) {
+function WindowGrid({
+  markets,
+  minutes,
+  title,
+}: {
+  markets: DailyMarket[];
+  minutes: number;
+  title: string;
+}) {
   const byKey = new Map(markets.map((m) => [m.date, m]));
-  const days = [...new Set(markets.map((m) => m.date.slice(0, 10)))].slice(0, 8);
-  const slots = Array.from({ length: 96 }, (_, i) => {
-    const hh = Math.floor(i / 4);
-    const mm = (i % 4) * 15;
+  const days = [...new Set(markets.map((m) => m.date.slice(0, 10)))].slice(
+    0,
+    minutes >= 60 ? 14 : 8,
+  );
+  const perDay = Math.round((24 * 60) / minutes);
+  const slots = Array.from({ length: perDay }, (_, i) => {
+    const total = i * minutes;
+    const hh = Math.floor(total / 60);
+    const mm = total % 60;
     return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
   });
+  const wide = minutes >= 60;
 
   return (
     <section className="min-w-0 rounded-xl border border-line bg-surface p-4 md:p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-medium tracking-tight">15m windows</h2>
-        <p className="text-xs text-subtle">ET · 96 slots a day</p>
+        <h2 className="text-sm font-medium tracking-tight">{title}</h2>
+        <p className="text-xs text-subtle">ET · {perDay} slots a day</p>
       </div>
       <div className="mt-4 flex flex-col gap-3">
         {days.map((day) => (
           <div key={day} className="min-w-0">
             <p className="mb-1 font-mono text-xs text-muted">{formatEtShort(day)}</p>
             <div className="overflow-x-auto">
-              <div className="grid w-max grid-cols-[repeat(96,0.7rem)] gap-px">
+              <div
+                className="grid w-max gap-px"
+                style={{
+                  gridTemplateColumns: `repeat(${perDay}, ${wide ? "1.15rem" : "0.7rem"})`,
+                }}
+              >
                 {slots.map((slot) => {
                   const m = byKey.get(`${day}T${slot}`);
                   return (
@@ -123,7 +150,8 @@ function WindowGrid({ markets }: { markets: DailyMarket[] }) {
                           : `${formatEtShort(day)} ${slot} ET`
                       }
                       className={cn(
-                        "size-2.5 rounded-xs",
+                        "rounded-xs",
+                        wide ? "h-3 w-full" : "size-2.5",
                         !m && "bg-raised",
                         m?.winner === "Up" && "bg-up",
                         m?.winner === "Down" && "bg-down",

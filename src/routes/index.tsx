@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { getBtcMarkets } from "@/lib/btc-daily";
 import {
   computeStats,
+  parseTimeframe,
   pickHero,
   TIMEFRAMES,
   type Timeframe,
@@ -17,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
-    tf: search.tf === "15m" ? ("15m" as const) : ("1d" as const),
+    tf: parseTimeframe(search.tf),
   }),
   loaderDeps: ({ search }) => ({ tf: search.tf }),
   loader: ({ deps }) => getBtcMarkets({ data: { tf: deps.tf } }),
@@ -31,7 +32,7 @@ function Home() {
   const spec = TIMEFRAMES[tf];
   const stats = computeStats(markets);
   const live = pickHero(markets);
-  const tape = markets.filter((m) => m.closed).slice(0, tf === "15m" ? 48 : 28);
+  const tape = markets.filter((m) => m.closed).slice(0, tf === "1d" ? 28 : 48);
 
   return (
     <main className="mx-auto flex min-h-dvh min-w-0 max-w-6xl flex-col gap-5 px-4 py-6 pb-16 md:gap-6 md:px-6 md:py-10">
@@ -90,10 +91,7 @@ function Home() {
 
       <HistoryList key={tf} markets={markets} timeframe={tf} />
 
-      <footer className="pt-2 text-xs text-subtle">
-        Not financial advice. {spec.command} uses Polymarket settlements
-        {tf === "1d" ? ", not Binance calendar-day candles." : " on Chainlink BTC/USD."}
-      </footer>
+      <footer className="pt-2 text-xs text-subtle">{spec.footer}</footer>
     </main>
   );
 }
@@ -101,7 +99,7 @@ function Home() {
 function TfSwitch({ tf }: { tf: Timeframe }) {
   return (
     <div className="inline-flex rounded-md border border-line bg-raised p-1">
-      {(["1d", "15m"] as const).map((id) => (
+      {(["1d", "1h", "15m"] as const).map((id) => (
         <Link
           key={id}
           to="/"
