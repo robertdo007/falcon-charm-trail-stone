@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { getBtcMarkets } from "@/lib/btc-daily";
+import { getBtcMarkets, getLiveBtcQuote } from "@/lib/btc-daily";
 import {
   computeStats,
   parseTimeframe,
@@ -21,13 +21,21 @@ export const Route = createFileRoute("/")({
     tf: parseTimeframe(search.tf),
   }),
   loaderDeps: ({ search }) => ({ tf: search.tf }),
-  loader: ({ deps }) => getBtcMarkets({ data: { tf: deps.tf } }),
+  loader: async ({ deps }) => {
+    const markets = await getBtcMarkets({ data: { tf: deps.tf } });
+    const live = pickHero(markets);
+    const quote =
+      live && live.closed === false
+        ? await getLiveBtcQuote({ data: { tf: deps.tf, end: live.endAt } })
+        : null;
+    return { markets, quote };
+  },
   pendingComponent: Pending,
   component: Home,
 });
 
 function Home() {
-  const markets = Route.useLoaderData();
+  const { markets, quote } = Route.useLoaderData();
   const { tf } = Route.useSearch();
   const spec = TIMEFRAMES[tf];
   const stats = computeStats(markets);
@@ -71,7 +79,7 @@ function Home() {
         </div>
       ) : null}
 
-      <LiveCard market={live} timeframe={tf} />
+      <LiveCard market={live} timeframe={tf} initialQuote={quote} />
       <Check1dPanel
         key={tf}
         markets={markets}

@@ -83,6 +83,11 @@ export const TIMEFRAMES: Record<
   },
 };
 
+export type LiveQuote = {
+  open: number | null;
+  current: number | null;
+};
+
 export type Outcome = "Up" | "Down" | "Tie";
 export type MarketPhase = "live" | "next" | "settled";
 

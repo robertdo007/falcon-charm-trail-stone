@@ -1,6 +1,14 @@
+import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { marketPhase, type DailyMarket, type Timeframe, TIMEFRAMES } from "@/lib/polymarket";
-import { formatBtc, formatSessionTitle, formatVolume } from "@/lib/utils";
+import { getLiveBtcQuote } from "@/lib/btc-daily";
+import {
+  marketPhase,
+  TIMEFRAMES,
+  type DailyMarket,
+  type LiveQuote,
+  type Timeframe,
+} from "@/lib/polymarket";
+import { formatBtc, formatPct, formatSessionTitle, formatVolume } from "@/lib/utils";
 import { OutcomeBadge } from "./outcome-badge";
 
 function implied(price: number | null): string {
@@ -17,11 +25,36 @@ const PHASE_LABEL = {
 export function LiveCard({
   market,
   timeframe = "1d",
+  initialQuote = null,
 }: {
   market: DailyMarket | null;
   timeframe?: Timeframe;
+  initialQuote?: LiveQuote | null;
 }) {
   const spec = TIMEFRAMES[timeframe];
+  const [quote, setQuote] = useState<LiveQuote | null>(initialQuote);
+
+  useEffect(() => {
+    setQuote(initialQuote);
+  }, [initialQuote, market?.id]);
+
+  useEffect(() => {
+    if (!market || marketPhase(market) === "settled") return;
+    let stop = false;
+    const pull = () => {
+      void getLiveBtcQuote({ data: { tf: timeframe, end: market.endAt } })
+        .then((next) => {
+          if (!stop) setQuote(next);
+        })
+        .catch(() => undefined);
+    };
+    pull();
+    const timer = setInterval(pull, 15_000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [market, timeframe]);
   if (!market) {
     return (
       <section className="rounded-xl border border-line bg-surface p-5 shadow-panel md:p-6">
@@ -33,6 +66,11 @@ export function LiveCard({
   const phase = marketPhase(market);
   const favored =
     (market.upPrice ?? 0) >= (market.downPrice ?? 0) ? "Up" : "Down";
+  const beat = market.btcOpen ?? quote?.open ?? null;
+  const nowPx = phase === "settled" ? market.btcClose : (quote?.current ?? null);
+  const gap = beat != null && nowPx != null ? nowPx - beat : null;
+  const gapPct = gap != null && beat ? (gap / beat) * 100 : null;
+  const gapTone = gap == null || gap === 0 ? undefined : gap > 0 ? "up" : "down";
 
   return (
     <section className="rounded-xl border border-line bg-surface p-5 shadow-panel md:p-6">
@@ -49,7 +87,7 @@ export function LiveCard({
         <OutcomeBadge outcome={market.winner} phase={phase} />
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
         <OddsCell
           label="Up"
           value={implied(market.upPrice)}
@@ -64,16 +102,20 @@ export function LiveCard({
         />
         <OddsCell
           label="Price to beat"
-          value={market.btcOpen ? formatBtc(market.btcOpen) : "—"}
+          value={beat != null ? formatBtc(beat) : "—"}
         />
         <OddsCell
-          label={phase === "settled" ? "Close" : "Volume"}
-          value={
-            phase === "settled" && market.btcClose
-              ? formatBtc(market.btcClose)
-              : formatVolume(market.volume)
-          }
+          label={phase === "settled" ? "Close" : "Now"}
+          value={nowPx != null ? formatBtc(nowPx) : "—"}
         />
+        <OddsCell
+          label="vs beat"
+          value={gap == null ? "—" : gap > 0 ? `+${formatBtc(gap)}` : formatBtc(gap)}
+          hint={gapPct == null ? undefined : formatPct(gapPct)}
+          tone={gapTone}
+          active={gapTone != null}
+        />
+        <OddsCell label="Volume" value={formatVolume(market.volume)} />
       </div>
 
       <a
@@ -92,11 +134,13 @@ export function LiveCard({
 function OddsCell({
   label,
   value,
+  hint,
   tone,
   active,
 }: {
   label: string;
   value: string;
+  hint?: string;
   tone?: "up" | "down";
   active?: boolean;
 }) {
@@ -119,6 +163,9 @@ function OddsCell({
       >
         {value}
       </p>
+      {hint ? (
+        <p className="mt-0.5 font-mono text-xs tabular-nums text-muted">{hint}</p>
+      ) : null}
     </div>
   );
 }
