@@ -140,6 +140,84 @@ export function findLongestCheck1d(markets: DailyMarket[]): Check1dResult {
   };
 }
 
+export function parseHourArchive(text: string): {
+  dates: string[];
+  dirs: TapeDir[];
+} {
+  const lines = text.split("\n");
+  const dates: string[] = [];
+  const dirs: TapeDir[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
+    const first = line.indexOf(",");
+    const last = line.lastIndexOf(",");
+    if (first <= 0 || last <= first) continue;
+    const dir = line.slice(last + 1).trim();
+    if (dir !== "up" && dir !== "down" && dir !== "flat") continue;
+    dates.push(line.slice(0, first));
+    dirs.push(dir);
+  }
+  return { dates, dirs };
+}
+
+export function findLongestInArchive(
+  archive: { dates: string[]; dirs: TapeDir[] },
+  recent: TapeDir[],
+): Check1dResult {
+  const { dates, dirs } = archive;
+  const probe = recent.length > 0 ? recent : dirs;
+  const empty: Check1dResult = {
+    seriesLength: dirs.length,
+    from: dates[0] ?? null,
+    to: dates[dates.length - 1] ?? null,
+    current: [],
+    history: [],
+    longest: null,
+    signal: null,
+  };
+  if (dirs.length < 2 || probe.length < 1) return empty;
+
+  const history: PatternHit[] = [];
+  const maxLen = Math.min(probe.length, dirs.length - 1);
+  for (let length = 1; length <= maxLen; length++) {
+    const pattern = probe.slice(-length);
+    const stats = analyzePattern(dirs, pattern);
+    if (stats.total === 0) break;
+    history.push(toHit(length, pattern, stats));
+  }
+
+  const longest = history[history.length - 1] ?? null;
+  let signal: Outcome | null = null;
+  if (longest && longest.total > 0) {
+    if (longest.countUp > longest.countDown) signal = "Up";
+    else if (longest.countDown > longest.countUp) signal = "Down";
+    else signal = "Tie";
+  }
+
+  return {
+    seriesLength: dirs.length,
+    from: dates[0] ?? null,
+    to: dates[dates.length - 1] ?? null,
+    current: longest?.patternDirs ?? probe.slice(-1),
+    history,
+    longest,
+    signal,
+  };
+}
+
+let hourArchive: Promise<{ dates: string[]; dirs: TapeDir[] }> | null = null;
+
+export function loadHourArchive(): Promise<{ dates: string[]; dirs: TapeDir[] }> {
+  hourArchive ??= fetch("/btc_1h_analysis.csv")
+    .then((res) => {
+      if (!res.ok) throw new Error(`Hourly archive ${res.status}`);
+      return res.text();
+    })
+    .then(parseHourArchive);
+  return hourArchive;
+}
+
 export function isCheck1dCommand(raw: string): boolean {
   return raw.trim().toLowerCase().replace(/\s+/g, "") === "check1d";
 }

@@ -57,10 +57,10 @@ export const TIMEFRAMES: Record<
     command: "check1h",
     unit: "hours",
     blurb:
-      "Bitcoin Up or Down hourly markets, resolved on the Binance BTC/USDT 1H candle. Run check1h on the recent tape, not the full archive.",
+      "Bitcoin Up or Down hourly markets on the Binance BTC/USDT 1H candle. Run check1h to search that live streak through the full archive, about 80,000 hours since 2017.",
     resolveNote: "Resolves on the Binance BTC/USDT 1 hour candle: close vs open.",
     footer:
-      "Not financial advice. check1h uses Polymarket settlements on the Binance BTC/USDT 1H candle.",
+      "Not financial advice. check1h counts hits in the Binance 1H archive. The streak itself is the latest settled Polymarket hours.",
     spanMinutes: 60,
     leadMinutes: 70,
   },

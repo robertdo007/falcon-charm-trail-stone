@@ -1,7 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Search } from "lucide-react";
 import {
   findLongestCheck1d,
+  findLongestInArchive,
+  loadHourArchive,
+  settledTape,
+  type Check1dResult,
   type PatternHit,
   type TapeDir,
 } from "@/lib/check1d";
@@ -17,11 +21,26 @@ export function Check1dPanel({
   command?: string;
   unit?: string;
 }) {
-  const [ran, setRan] = useState(false);
-  const result = useMemo(
-    () => (ran ? findLongestCheck1d(markets) : null),
-    [ran, markets],
-  );
+  const [result, setResult] = useState<Check1dResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setRunning(true);
+    setError(null);
+    try {
+      if (command === "check1h") {
+        const archive = await loadHourArchive();
+        setResult(findLongestInArchive(archive, settledTape(markets).dirs));
+      } else {
+        setResult(findLongestCheck1d(markets));
+      }
+    } catch {
+      setError("Could not load the hourly archive.");
+    } finally {
+      setRunning(false);
+    }
+  }
 
   return (
     <section className="rounded-xl border border-line bg-surface p-5 shadow-panel md:p-6">
@@ -32,23 +51,32 @@ export function Check1dPanel({
           </p>
           <h2 className="mt-1 text-lg font-medium tracking-tight">{command}</h2>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            Take the latest Up/Down streak and grow it until that sequence no
-            longer appears earlier in this tape.
+            {command === "check1h"
+              ? "Take the latest settled hours and grow that streak until it no longer shows up in the 80,000-hour archive."
+              : "Take the latest Up/Down streak and grow it until that sequence no longer appears earlier in this tape."}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setRan(true)}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg transition-opacity duration-150 hover:opacity-90"
+          onClick={() => void run()}
+          disabled={running}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg transition-opacity duration-150 hover:opacity-90 disabled:opacity-60"
         >
           <Search className="size-4" strokeWidth={2} />
-          Run
+          {running ? "Running…" : "Run"}
         </button>
       </div>
 
+      {error ? <p className="mt-4 text-sm text-down">{error}</p> : null}
       {result ? <Check1dResultView result={result} unit={unit} /> : null}
     </section>
   );
+}
+
+function formatBound(value: string | null): string {
+  if (!value) return "—";
+  if (!value.includes("T")) return value;
+  return value.replace(".000Z", " UTC").replace("T", " ").replace("Z", " UTC");
 }
 
 function nextNoun(unit: string): string {
@@ -89,7 +117,7 @@ function Check1dResultView({
               Longest hit · {result.seriesLength} settled {unit}
             </p>
             <p className="mt-1 text-sm text-muted">
-              {result.from} → {result.to}
+              {formatBound(result.from)} → {formatBound(result.to)}
             </p>
           </div>
           {longest ? (
