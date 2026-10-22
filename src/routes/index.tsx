@@ -113,8 +113,8 @@ function Home() {
       </section>
 
       <footer className="text-xs text-subtle">
-        Not financial advice. 4H and 1D candles are built from the hourly file.
-        1D is a UTC day. A tie close is flat.
+        Not financial advice. 4H uses its own archive. 1D is a UTC day built
+        from the hourly file. A tie close is flat.
       </footer>
     </main>
   );

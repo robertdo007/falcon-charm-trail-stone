@@ -3,7 +3,7 @@ export type Frame = "1h" | "4h" | "1d";
 
 export const FRAMES: { id: Frame; label: string; hint: string }[] = [
   { id: "1h", label: "1H", hint: "one Binance hour" },
-  { id: "4h", label: "4H", hint: "four hours, UTC 00/04/08/12/16/20" },
+  { id: "4h", label: "4H", hint: "the 4-hour archive" },
   { id: "1d", label: "1D", hint: "one UTC day" },
 ];
 
@@ -178,12 +178,24 @@ export function nextAfter(dirs: TapeDir[], pattern: TapeDir[]): Omit<
 
 let cached: Promise<Record<Frame, FrameTape>> | null = null;
 
+function fetchCsv(path: string): Promise<string> {
+  return fetch(path).then((res) => {
+    if (!res.ok) throw new Error(`${path} ${res.status}`);
+    return res.text();
+  });
+}
+
 export function loadTapes(): Promise<Record<Frame, FrameTape>> {
-  cached ??= fetch("/btc_1h_analysis.csv")
-    .then((res) => {
-      if (!res.ok) throw new Error(`Archive ${res.status}`);
-      return res.text();
-    })
-    .then((text) => tapesFromHours(parseHourlyCsv(text)));
+  cached ??= Promise.all([
+    fetchCsv("/btc_1h_analysis.csv"),
+    fetchCsv("/btc_4h_analysis.csv"),
+  ]).then(([hourText, fourText]) => {
+    const hours = parseHourlyCsv(hourText);
+    return {
+      "1h": dirsOf(hours),
+      "4h": dirsOf(parseHourlyCsv(fourText)),
+      "1d": resample(hours, 24),
+    };
+  });
   return cached;
 }
