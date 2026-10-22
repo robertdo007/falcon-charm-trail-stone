@@ -201,6 +201,12 @@ export function vietnamLocalToUtc(value: string): number | null {
   return utc - VN_OFFSET_MS;
 }
 
+function vietnamStamp(ms: number): string {
+  const d = new Date(ms + VN_OFFSET_MS);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${two(d.getUTCDate())}/${two(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
+}
+
 export function sequenceFromTime(
   tape: FrameTape,
   frame: Frame,
@@ -229,7 +235,11 @@ export function sequenceFromTime(
       break;
     }
   }
-  if (start < 0) return { error: "That time is after the latest closed candle." };
+  if (start < 0) {
+    return {
+      error: `That time is after the latest closed candle (opened ${vietnamStamp(tape.times[end])}, Vietnam time).`,
+    };
+  }
 
   const dirs = tape.dirs.slice(start, end + 1);
   if (dirs.length > MAX_SLICE) {

@@ -75,7 +75,7 @@ async function writeAtomic(path: string, text: string): Promise<void> {
 async function fetchRows(frame: CandleFrame, lastOpen: number, now: number): Promise<string[]> {
   const span = CANDLE_SPAN_MS[frame];
   const rows: string[] = [];
-  let start = lastOpen + span;
+  let start = lastOpen; // inclusive: the last row may have been exported while still open
   for (let page = 0; page < MAX_PAGES && start + span <= now; page += 1) {
     const url = `${KLINES_URL}?symbol=BTCUSDT&interval=${frame}&startTime=${start}&limit=${PAGE_LIMIT}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
