@@ -3,7 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "BTC Daily Tape";
+const APP_NAME = "BTC Next Candle";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -14,7 +14,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Historical Bitcoin Up or Down daily markets from Polymarket — outcomes, volume, and BTC open/close.",
+          "Type a BTC candle sequence and see how the next 1H, 4H, or 1D candle resolved.",
       },
       { name: "theme-color", content: "#090a0b" },
     ],
