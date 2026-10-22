@@ -38,6 +38,7 @@ describe("getCandleTail", () => {
     mock.method(globalThis, "fetch", async (url: string) => {
       calls.push(String(url));
       return Response.json([
+        kline(T0 + HOUR, "82248.09", "82018.01"), // the 09:00 candle, now settled
         kline(T0 + 2 * HOUR, "82066.01", "82100.51"),
         kline(T0 + 3 * HOUR, "82100.51", "82000.00"),
         kline(T0 + 4 * HOUR, "82000.00", "82500.00"),
@@ -45,16 +46,21 @@ describe("getCandleTail", () => {
     });
 
     const result = await getCandleTail("1h", T0 + HOUR);
-    assert.equal(result.added, 2);
+    assert.equal(result.added, 3);
     assert.equal(result.stale, false);
     assert.equal(
       result.csv,
       `${CSV_HEADER}\n2026-10-16T10:00:00.000Z,82100.51,34.50,0.0420,up\n2026-10-16T11:00:00.000Z,82000.00,-100.51,-0.1224,down\n`,
     );
     assert.match(calls[0], /interval=1h/);
-    assert.match(calls[0], new RegExp(`startTime=${T0 + 2 * HOUR}\\b`));
+    assert.match(calls[0], new RegExp(`startTime=${T0 + HOUR}\\b`));
     const saved = await readFile(join(dir, "btc_1h_analysis.csv"), "utf8");
-    assert.equal(saved, SEED + result.csv.slice(CSV_HEADER.length + 1));
+    assert.equal(
+      saved,
+      `${CSV_HEADER}\n2026-10-16T08:00:00.000Z,82248.09,-41.91,-0.0509,down\n` +
+        "2026-10-16T09:00:00.000Z,82018.01,-230.08,-0.2797,down\n" +
+        result.csv.slice(CSV_HEADER.length + 1),
+    );
   });
 
   it("does not call Binance when the archive is already current", async () => {

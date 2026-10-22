@@ -60,9 +60,16 @@ export function klinesToRows(
   return rows;
 }
 
+/**
+ * Appends rows. If the file's last row is the same candle as the first new row it is replaced:
+ * an export taken mid-candle stores a provisional close that Binance later settles.
+ */
 export function appendRows(csv: string, rows: string[]): string {
   if (rows.length === 0) return csv;
-  const base = csv.trim() === "" ? `${CSV_HEADER}\n` : csv.endsWith("\n") ? csv : `${csv}\n`;
+  let base = csv.trim() === "" ? `${CSV_HEADER}\n` : csv.endsWith("\n") ? csv : `${csv}\n`;
+  const firstDate = rows[0].slice(0, rows[0].indexOf(","));
+  const lastStart = base.lastIndexOf("\n", base.length - 2) + 1;
+  if (base.slice(lastStart).startsWith(`${firstDate},`)) base = base.slice(0, lastStart);
   return `${base}${rows.join("\n")}\n`;
 }
 

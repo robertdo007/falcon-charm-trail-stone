@@ -75,6 +75,14 @@ describe("appendRows / tailOf / withoutHeader", () => {
     assert.equal(appendRows(CSV, []), CSV);
     assert.equal(appendRows("", [row]), `${CSV_HEADER}\n${row}\n`);
   });
+  it("replaces the last row when it is the same candle (exported while still open)", () => {
+    const settled = "2026-10-16T09:00:00.000Z,82018.01,-230.08,-0.2797,down";
+    const next = "2026-10-16T10:00:00.000Z,82100.51,82.50,0.1006,up";
+    assert.equal(
+      appendRows(CSV, [settled, next]),
+      `${CSV_HEADER}\n2026-10-16T08:00:00.000Z,82248.09,-41.91,-0.0509,down\n${settled}\n${next}\n`,
+    );
+  });
   it("returns only rows after the given time, always with a header", () => {
     assert.equal(
       tailOf(CSV, T0),
