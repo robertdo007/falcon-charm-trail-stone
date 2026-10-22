@@ -6,6 +6,8 @@ import {
   loadTapes,
   nextAfter,
   parseSequence,
+  sequenceFromTime,
+  vietnamLocalToUtc,
   type Frame,
   type NextStat,
   type TapeDir,
@@ -19,22 +21,41 @@ export const Route = createFileRoute("/")({
 function Home() {
   const [frame, setFrame] = useState<Frame>("1h");
   const [raw, setRaw] = useState("");
+  const [startAt, setStartAt] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<NextStat | null>(null);
 
   async function run() {
-    const pattern = parseSequence(raw);
-    if (!pattern) {
-      setResult(null);
-      setError("Enter candles as up, down, or flat. Example: up down up up");
-      return;
-    }
     setRunning(true);
     setError(null);
     try {
       const tapes = await loadTapes();
       const tape = tapes[frame];
+      let pattern: TapeDir[] | null;
+      if (startAt) {
+        const startMs = vietnamLocalToUtc(startAt);
+        if (startMs == null) {
+          setResult(null);
+          setError("Enter a valid start date and time.");
+          return;
+        }
+        const slice = sequenceFromTime(tape, frame, startMs);
+        if ("error" in slice) {
+          setResult(null);
+          setError(slice.error);
+          return;
+        }
+        pattern = slice.dirs;
+        setRaw(pattern.join(" "));
+      } else {
+        pattern = parseSequence(raw);
+        if (!pattern) {
+          setResult(null);
+          setError("Enter candles as up, down, or flat. Example: up down up up");
+          return;
+        }
+      }
       const stat = nextAfter(tape.dirs, pattern);
       setResult({
         frame,
@@ -45,7 +66,7 @@ function Home() {
       });
     } catch {
       setResult(null);
-      setError("Could not load the hourly archive.");
+      setError("Could not load the archive.");
     } finally {
       setRunning(false);
     }
@@ -97,6 +118,26 @@ function Home() {
               placeholder="up down up up"
               className="min-h-24 w-full resize-y rounded-md border border-line bg-raised px-3 py-3 font-mono text-sm text-fg outline-none placeholder:text-subtle focus:border-accent"
             />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-wider text-subtle">
+              Optional start · Vietnam time (UTC+7)
+            </span>
+            <input
+              type="datetime-local"
+              value={startAt}
+              step={3600}
+              onChange={(event) => {
+                setStartAt(event.target.value);
+                setResult(null);
+              }}
+              className="min-h-11 w-full rounded-md border border-line bg-raised px-3 font-mono text-sm text-fg outline-none [color-scheme:dark] focus:border-accent"
+            />
+            <span className="text-xs text-muted">
+              Leave this empty to search the sequence you typed. If you set a
+              time, Run builds the candles from that hour through the latest
+              closed candle, then searches.
+            </span>
           </label>
           <button
             type="button"

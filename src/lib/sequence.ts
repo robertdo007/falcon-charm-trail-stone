@@ -11,8 +11,15 @@ type Hour = { t: number; open: number; close: number; dir: TapeDir };
 
 export type FrameTape = {
   dirs: TapeDir[];
+  times: number[];
   from: string | null;
   to: string | null;
+};
+
+export const FRAME_MS: Record<Frame, number> = {
+  "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
 };
 
 export type NextStat = {
@@ -92,6 +99,7 @@ function stamp(t: number): string {
 function dirsOf(hours: Hour[]): FrameTape {
   return {
     dirs: hours.map((h) => h.dir),
+    times: hours.map((h) => h.t),
     from: hours[0] ? stamp(hours[0].t) : null,
     to: hours[hours.length - 1] ? stamp(hours[hours.length - 1].t) : null,
   };
@@ -174,6 +182,62 @@ export function nextAfter(dirs: TapeDir[], pattern: TapeDir[]): Omit<
     countFlat,
     next: total === 0 ? null : winners.length === 1 ? winners[0] : "tie",
   };
+}
+
+const VN_OFFSET_MS = 7 * 3_600_000;
+const MAX_SLICE = 300;
+
+export function vietnamLocalToUtc(value: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
+  if (!match) return null;
+  const utc = Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+  );
+  if (!Number.isFinite(utc)) return null;
+  return utc - VN_OFFSET_MS;
+}
+
+export function sequenceFromTime(
+  tape: FrameTape,
+  frame: Frame,
+  startMs: number,
+  now = Date.now(),
+): { dirs: TapeDir[]; from: number; to: number } | { error: string } {
+  const span = FRAME_MS[frame];
+  let end = -1;
+  for (let i = tape.times.length - 1; i >= 0; i--) {
+    if (tape.times[i] + span <= now) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return { error: "No closed candle in this archive yet." };
+
+  let start = -1;
+  for (let i = 0; i <= end; i++) {
+    const open = tape.times[i];
+    if (open <= startMs && startMs < open + span) {
+      start = i;
+      break;
+    }
+    if (open >= startMs) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return { error: "That time is after the latest closed candle." };
+
+  const dirs = tape.dirs.slice(start, end + 1);
+  if (dirs.length > MAX_SLICE) {
+    return {
+      error: `That range is ${dirs.length} candles. Pick a start within the last 300 candles.`,
+    };
+  }
+  return { dirs, from: tape.times[start], to: tape.times[end] };
 }
 
 let cached: Promise<Record<Frame, FrameTape>> | null = null;
