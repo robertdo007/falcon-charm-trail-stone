@@ -240,7 +240,8 @@ export function sequenceFromTime(
   return { dirs, from: tape.times[start], to: tape.times[end] };
 }
 
-let cached: Promise<Record<Frame, FrameTape>> | null = null;
+type Archive = { h1: Hour[]; h4: Hour[] };
+let archive: Promise<Archive> | null = null;
 
 function fetchCsv(path: string): Promise<string> {
   return fetch(path).then((res) => {
@@ -249,17 +250,47 @@ function fetchCsv(path: string): Promise<string> {
   });
 }
 
-export function loadTapes(): Promise<Record<Frame, FrameTape>> {
-  cached ??= Promise.all([
+function lastTime(hours: Hour[]): number {
+  return hours.length > 0 ? hours[hours.length - 1].t : 0;
+}
+
+// The CSV files are a snapshot. On every Run the server checks Binance for candles that closed
+// after the file's last row, appends them to the CSV, and sends back just those rows.
+async function fetchTail(frame: "1h" | "4h", after: number): Promise<Hour[]> {
+  try {
+    const res = await fetch(`/api/candles?frame=${frame}&after=${after}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    return parseHourlyCsv(await res.text());
+  } catch {
+    return [];
+  }
+}
+
+export function mergeHours(base: Hour[], extra: Hour[]): Hour[] {
+  const last = lastTime(base);
+  const fresh = extra.filter((hour) => hour.t > last);
+  return fresh.length > 0 ? [...base, ...fresh] : base;
+}
+
+export async function loadTapes(): Promise<Record<Frame, FrameTape>> {
+  archive ??= Promise.all([
     fetchCsv("/btc_1h_analysis.csv"),
     fetchCsv("/btc_4h_analysis.csv"),
-  ]).then(([hourText, fourText]) => {
-    const hours = parseHourlyCsv(hourText);
-    return {
-      "1h": dirsOf(hours),
-      "4h": dirsOf(parseHourlyCsv(fourText)),
-      "1d": resample(hours, 24),
-    };
-  });
-  return cached;
+  ])
+    .then(([hourText, fourText]) => ({
+      h1: parseHourlyCsv(hourText),
+      h4: parseHourlyCsv(fourText),
+    }))
+    .catch((error) => {
+      archive = null;
+      throw error;
+    });
+  const base = await archive;
+  const [tail1, tail4] = await Promise.all([
+    fetchTail("1h", lastTime(base.h1)),
+    fetchTail("4h", lastTime(base.h4)),
+  ]);
+  const h1 = mergeHours(base.h1, tail1);
+  const h4 = mergeHours(base.h4, tail4);
+  return { "1h": dirsOf(h1), "4h": dirsOf(h4), "1d": resample(h1, 24) };
 }

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiBtcDailyRouteImport } from './routes/api/btc-daily'
+import { Route as ApiCandlesRouteImport } from './routes/api/candles'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const ApiBtcDailyRoute = ApiBtcDailyRouteImport.update({
   path: '/api/btc-daily',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCandlesRoute = ApiCandlesRouteImport.update({
+  id: '/api/candles',
+  path: '/api/candles',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/btc-daily': typeof ApiBtcDailyRoute
+  '/api/candles': typeof ApiCandlesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/btc-daily': typeof ApiBtcDailyRoute
+  '/api/candles': typeof ApiCandlesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/btc-daily': typeof ApiBtcDailyRoute
+  '/api/candles': typeof ApiCandlesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/btc-daily'
+  fullPaths: '/' | '/api/btc-daily' | '/api/candles'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/btc-daily'
-  id: '__root__' | '/' | '/api/btc-daily'
+  to: '/' | '/api/btc-daily' | '/api/candles'
+  id: '__root__' | '/' | '/api/btc-daily' | '/api/candles'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiBtcDailyRoute: typeof ApiBtcDailyRoute
+  ApiCandlesRoute: typeof ApiCandlesRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBtcDailyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/candles': {
+      id: '/api/candles'
+      path: '/api/candles'
+      fullPath: '/api/candles'
+      preLoaderRoute: typeof ApiCandlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiBtcDailyRoute: ApiBtcDailyRoute,
+  ApiCandlesRoute: ApiCandlesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

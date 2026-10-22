@@ -1,3 +1,4 @@
+import { lastOpenTime, withoutHeader } from "./candles-csv";
 import type { DailyMarket, Outcome } from "./polymarket";
 
 export type TapeDir = "up" | "down" | "flat";
@@ -206,16 +207,29 @@ export function findLongestInArchive(
   };
 }
 
-let hourArchive: Promise<{ dates: string[]; dirs: TapeDir[] }> | null = null;
+let hourBase: Promise<string> | null = null;
 
-export function loadHourArchive(): Promise<{ dates: string[]; dirs: TapeDir[] }> {
-  hourArchive ??= fetch("/btc_1h_analysis.csv")
+// Same top-up as the sequence tool: the server appends newly closed candles to the CSV first.
+export async function loadHourArchive(): Promise<{ dates: string[]; dirs: TapeDir[] }> {
+  hourBase ??= fetch("/btc_1h_analysis.csv")
     .then((res) => {
       if (!res.ok) throw new Error(`Hourly archive ${res.status}`);
       return res.text();
     })
-    .then(parseHourArchive);
-  return hourArchive;
+    .catch((error) => {
+      hourBase = null;
+      throw error;
+    });
+  const base = await hourBase;
+  let extra = "";
+  try {
+    const last = lastOpenTime(base) ?? 0;
+    const res = await fetch(`/api/candles?frame=1h&after=${last}`, { cache: "no-store" });
+    if (res.ok) extra = withoutHeader(await res.text());
+  } catch {
+    extra = "";
+  }
+  return parseHourArchive(extra ? `${base.endsWith("\n") ? base : `${base}\n`}${extra}` : base);
 }
 
 export function isCheck1dCommand(raw: string): boolean {
